@@ -1,0 +1,201 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: python src/data_ingestion.py
+    deps:
+    - path: data/raw/bridge_data.csv
+      hash: md5
+      md5: bb006065a05c896e3daa0a2e81e680e5
+      size: 21205
+    - path: src/data_ingestion.py
+      hash: md5
+      md5: 1e049d0878487313901c01e1e14f1bab
+      size: 1268
+    outs:
+    - path: data/ingested/bridge_data.csv
+      hash: md5
+      md5: 84469555af0daf465b321e4a06b97db7
+      size: 21205
+  data_preprocessing:
+    cmd: python src/data_preprocessing.py
+    deps:
+    - path: data/ingested/bridge_data.csv
+      hash: md5
+      md5: 84469555af0daf465b321e4a06b97db7
+      size: 21205
+    - path: src/data_preprocessing.py
+      hash: md5
+      md5: 9e930b2b396d7f965a52a59e5a735399
+      size: 1916
+    params:
+      params.yaml:
+        random_state: 42
+        test_size: 0.2
+    outs:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 43da527bb25b366ed513c77f80a1bab9
+      size: 3543
+    - path: data/processed/train.csv
+      hash: md5
+      md5: a658b55e847318c9d139a43deccb60b1
+      size: 13948
+  feature_engineering:
+    cmd: python src/feature_engineering.py
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 43da527bb25b366ed513c77f80a1bab9
+      size: 3543
+    - path: data/processed/train.csv
+      hash: md5
+      md5: a658b55e847318c9d139a43deccb60b1
+      size: 13948
+    - path: src/feature_engineering.py
+      hash: md5
+      md5: 8014edbdb63cf61336fe8d10d384b196
+      size: 1867
+    outs:
+    - path: data/processed/X_test.csv
+      hash: md5
+      md5: 8cab99abe5677690c76cb8b6341f3126
+      size: 3288
+    - path: data/processed/X_train.csv
+      hash: md5
+      md5: 92f72fec0ba77088f6a084615bb91382
+      size: 12985
+    - path: data/processed/y_test.csv
+      hash: md5
+      md5: 1c459e346ad334f1f5974cfa1a89a45f
+      size: 375
+    - path: data/processed/y_train.csv
+      hash: md5
+      md5: 2a503514537fe4cb96928d029c52c3af
+      size: 1437
+  model_building:
+    cmd: python src/model_building.py
+    deps:
+    - path: data/processed/X_train.csv
+      hash: md5
+      md5: 92f72fec0ba77088f6a084615bb91382
+      size: 12985
+    - path: data/processed/y_train.csv
+      hash: md5
+      md5: 2a503514537fe4cb96928d029c52c3af
+      size: 1437
+    - path: src/model_building.py
+      hash: md5
+      md5: 768c9a7aefc472f75abc5651de36e088
+      size: 21838
+    params:
+      params.yaml:
+        cv_folds: 5
+        experiment_name: BRIDGE_PL_RUNS
+        measurement:
+          training_time_repeats: 3
+          prediction_n_samples: 50
+          prediction_repeats: 5
+        n_trials: 20
+        random_state: 42
+        selection:
+          max_accuracy_gap_pct: 5.0
+          accuracy_tolerance_pct: 1.0
+          gap_penalty_in_search: true
+          gap_penalty_weight: 1.0
+          fallback_if_none_eligible: smallest_gap
+          weights:
+            model_size_mb: 0.3
+            training_time_seconds: 0.3
+            prediction_time_ms: 0.4
+    outs:
+    - path: models/DecisionTree.pkl
+      hash: md5
+      md5: 9eea3c9d1f79d7b64b800e07ebc696db
+      size: 5611
+    - path: models/GaussianNB.pkl
+      hash: md5
+      md5: e066a6913d70b349156c8cd6a0b30cfd
+      size: 3801
+    - path: models/LogisticRegression.pkl
+      hash: md5
+      md5: 9c3bf0d1f5bea7ee828b04fe768adb04
+      size: 3581
+    - path: models/RandomForest.pkl
+      hash: md5
+      md5: 5d01c3aa0daf41604ea80062eb2a6420
+      size: 372882
+    - path: models/SVM.pkl
+      hash: md5
+      md5: 65ccb0997b60c9ddd495019f5395780c
+      size: 16605
+    - path: models/model.pkl
+      hash: md5
+      md5: 5d01c3aa0daf41604ea80062eb2a6420
+      size: 372882
+    - path: reports/model_comparison.csv
+      hash: md5
+      md5: 9549272becb90949f4669a055035a69a
+      size: 524
+    - path: reports/model_comparison.md
+      hash: md5
+      md5: d85d284cf716cf060f196991dd82a9f5
+      size: 736
+    - path: reports/model_selection.json
+      hash: md5
+      md5: c3705a97dd74883263a482fcdf31857b
+      size: 4919
+  model_evaluation:
+    cmd: python src/model_evaluation.py
+    deps:
+    - path: data/processed/X_test.csv
+      hash: md5
+      md5: 8cab99abe5677690c76cb8b6341f3126
+      size: 3288
+    - path: data/processed/y_test.csv
+      hash: md5
+      md5: 1c459e346ad334f1f5974cfa1a89a45f
+      size: 375
+    - path: models/DecisionTree.pkl
+      hash: md5
+      md5: 9eea3c9d1f79d7b64b800e07ebc696db
+      size: 5611
+    - path: models/GaussianNB.pkl
+      hash: md5
+      md5: e066a6913d70b349156c8cd6a0b30cfd
+      size: 3801
+    - path: models/LogisticRegression.pkl
+      hash: md5
+      md5: 9c3bf0d1f5bea7ee828b04fe768adb04
+      size: 3581
+    - path: models/RandomForest.pkl
+      hash: md5
+      md5: 5d01c3aa0daf41604ea80062eb2a6420
+      size: 372882
+    - path: models/SVM.pkl
+      hash: md5
+      md5: 65ccb0997b60c9ddd495019f5395780c
+      size: 16605
+    - path: models/model.pkl
+      hash: md5
+      md5: 5d01c3aa0daf41604ea80062eb2a6420
+      size: 372882
+    - path: reports/model_selection.json
+      hash: md5
+      md5: c3705a97dd74883263a482fcdf31857b
+      size: 4919
+    - path: src/model_evaluation.py
+      hash: md5
+      md5: e671c210d5631e77a01448696683b568
+      size: 8032
+    params:
+      params.yaml:
+        experiment_name: BRIDGE_PL_RUNS
+    outs:
+    - path: reports/evaluation_details.json
+      hash: md5
+      md5: d4cfd2dfac2a5cc900ce2e953497072b
+      size: 6066
+    - path: reports/metrics.json
+      hash: md5
+      md5: a5e19c7de0c17bd21f14efc2bbec59ee
+      size: 691

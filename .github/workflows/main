@@ -1,0 +1,38 @@
+import time
+from src import (
+    data_ingestion,
+    data_preprocessing,
+    feature_engineering,
+    model_building,
+    model_evaluation,
+)
+
+
+def main():
+    stages = [
+        ("1. Data Ingestion", data_ingestion.main),
+        ("2. Data Preprocessing", data_preprocessing.main),
+        ("3. Feature Engineering", feature_engineering.main),
+        ("4. Model Building", model_building.main),
+        ("5. Model Evaluation", model_evaluation.main),
+    ]
+
+    total_start = time.perf_counter()
+
+    for stage_name, stage_fn in stages:
+        print("\n" + "=" * 60)
+        print(f"RUNNING STAGE: {stage_name}")
+        print("=" * 60)
+        stage_start = time.perf_counter()
+        stage_fn()
+        elapsed = time.perf_counter() - stage_start
+        print(f"--> {stage_name} completed in {elapsed:.2f}s")
+
+    total_elapsed = time.perf_counter() - total_start
+    print("\n" + "=" * 60)
+    print(f"PIPELINE FINISHED SUCCESSFULLY IN {total_elapsed:.2f}s")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

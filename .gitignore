@@ -1,0 +1,12 @@
+myenv/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+mlruns/
+mlflow.db
+.dvc/cache/
+/data/ingested/
+/data/processed/
+/models/*.pkl
+!/models/model.pkl
