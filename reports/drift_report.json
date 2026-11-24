@@ -1,0 +1,56 @@
+{
+    "timestamp": "2026-11-24T10:41:43.058329+00:00",
+    "reference_samples": 473,
+    "current_samples": 51,
+    "total_features": 4,
+    "drifted_features": 0,
+    "drift_share_pct": 0.0,
+    "dataset_drift_detected": false,
+    "dataset_drift_threshold_pct": 50.0,
+    "features": {
+        "age_of_bridge": {
+            "feature_type": "numerical",
+            "test_name": "KS Test",
+            "drift_detected": false,
+            "p_value": 0.11314741071681299,
+            "statistic": 0.17257389213613564,
+            "threshold": 0.05,
+            "reference_summary": "49.13 (\u00b129.29)",
+            "current_summary": "43.10 (\u00b126.06)",
+            "shift_summary": "-6.03"
+        },
+        "traffic_volume": {
+            "feature_type": "numerical",
+            "test_name": "KS Test",
+            "drift_detected": false,
+            "p_value": 0.1482268716029181,
+            "statistic": 0.1641172325166853,
+            "threshold": 0.05,
+            "reference_summary": "2474.33 (\u00b11410.25)",
+            "current_summary": "2532.88 (\u00b11122.30)",
+            "shift_summary": "+58.55"
+        },
+        "material_type": {
+            "feature_type": "categorical",
+            "test_name": "Chi-Square",
+            "drift_detected": false,
+            "p_value": 0.9023727303156985,
+            "statistic": 0.015046593840274923,
+            "threshold": 0.05,
+            "reference_summary": "Top: Steel (51.0%)",
+            "current_summary": "Top: Steel (52.9%)",
+            "shift_summary": "Categories: 2"
+        },
+        "maintenance_level": {
+            "feature_type": "categorical",
+            "test_name": "Chi-Square",
+            "drift_detected": false,
+            "p_value": 0.3248791525620819,
+            "statistic": 2.2486040081438174,
+            "threshold": 0.05,
+            "reference_summary": "Top: Bi-Annual (35.3%)",
+            "current_summary": "Top: No-Maintainance (43.1%)",
+            "shift_summary": "Categories: 3"
+        }
+    }
+}

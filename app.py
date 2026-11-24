@@ -4,6 +4,32 @@ import json
 import joblib
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
+
+try:
+    from monitor_drift import (
+        DRIFT_ALERT_MD_PATH,
+        DRIFT_HTML_PATH,
+        DRIFT_JSON_PATH,
+        INFERENCE_LOG_PATH,
+        REFERENCE_DATA_PATH,
+        load_inference_logs,
+        log_batch_inferences,
+        log_inference,
+        run_drift_check,
+    )
+except ImportError:
+    from src.monitor_drift import (
+        DRIFT_ALERT_MD_PATH,
+        DRIFT_HTML_PATH,
+        DRIFT_JSON_PATH,
+        INFERENCE_LOG_PATH,
+        REFERENCE_DATA_PATH,
+        load_inference_logs,
+        log_batch_inferences,
+        log_inference,
+        run_drift_check,
+    )
 
 MODEL_PATH = Path("models/model.pkl")
 SELECTION_PATH = Path("reports/model_selection.json")
@@ -64,13 +90,13 @@ def main():
     st.title("🌉 Bridge Condition Prediction & MLOps Dashboard")
     st.markdown(
         "Predict structural condition (**Good** vs. **Poor**) using the automatically "
-        "selected champion pipeline."
+        "selected champion pipeline and monitor live production feature drift."
     )
 
     if not MODEL_PATH.exists():
         st.error(
             f"Champion model not found at `{MODEL_PATH}`. "
-            "Run `dvc repro` or `python main.py` first to train and select a model."
+            "Run `dvc repro` or `python model_building.py` first to train and select a model."
         )
         st.stop()
 
@@ -80,8 +106,12 @@ def main():
     details = load_json(DETAILS_PATH)
     feature_meta = load_feature_metadata(X_TRAIN_PATH)
 
-    tab_predict, tab_mlops = st.tabs(
-        ["🔍 Single & Batch Prediction", "📊 Champion Model & MLOps Metrics"]
+    tab_predict, tab_mlops, tab_drift = st.tabs(
+        [
+            "🔍 Single & Batch Prediction",
+            "📊 Champion Model & MLOps Metrics",
+            "📡 Data Drift Monitoring",
+        ]
     )
 
     # =========================================================================
@@ -119,6 +149,11 @@ def main():
                     options=feature_meta["maintenance_level"],
                 )
 
+                log_single = st.checkbox(
+                    f"Log prediction to monitoring store (`{INFERENCE_LOG_PATH.as_posix()}`)",
+                    value=True,
+                )
+
                 submitted = st.form_submit_button(
                     "Predict Bridge Condition", use_container_width=True
                 )
@@ -145,17 +180,27 @@ def main():
                 else:
                     st.error(f"### Predicted Condition: **{pred_label}**")
 
-                # Display confidence probabilities if supported by the champion model
+                prob_dict = None
                 if hasattr(model, "predict_proba"):
                     probs = model.predict_proba(input_df)[0]
-                    prob_poor = float(probs[0]) * 100
-                    prob_good = float(probs[1]) * 100
+                    prob_poor = float(probs[0])
+                    prob_good = float(probs[1])
+                    prob_dict = {"Poor": prob_poor, "Good": prob_good}
 
                     st.markdown("#### Prediction Confidence")
                     c1, c2 = st.columns(2)
-                    c1.metric("Good Condition (1)", f"{prob_good:.1f}%")
-                    c2.metric("Poor Condition (0)", f"{prob_poor:.1f}%")
-                    st.progress(int(round(prob_good)))
+                    c1.metric("Good Condition (1)", f"{prob_good * 100:.1f}%")
+                    c2.metric("Poor Condition (0)", f"{prob_poor * 100:.1f}%")
+                    st.progress(int(round(prob_good * 100)))
+
+                if log_single:
+                    log_inference(
+                        input_df=input_df,
+                        prediction_code=pred_class,
+                        prediction_label=pred_label,
+                        probabilities=prob_dict,
+                    )
+                    st.caption(f"✅ Logged to `{INFERENCE_LOG_PATH.as_posix()}` for drift tracking.")
 
                 with st.expander("View Input Payload"):
                     st.dataframe(input_df, use_container_width=True)
@@ -165,6 +210,10 @@ def main():
         # Batch CSV Upload section
         st.divider()
         st.subheader("Batch CSV Prediction")
+        log_batch = st.checkbox(
+            f"Log batch predictions to `{INFERENCE_LOG_PATH.as_posix()}`",
+            value=True,
+        )
         uploaded_file = st.file_uploader(
             "Upload a CSV containing `age_of_bridge`, `traffic_volume`, `material_type`, and `maintenance_level`",
             type=["csv"],
@@ -182,12 +231,28 @@ def main():
                     X_batch[c] = X_batch[c].astype(str).str.strip()
 
                 preds = model.predict(X_batch)
+                pred_labels = [LABEL_MAP.get(int(p), str(p)) for p in preds]
                 batch_df["predicted_condition_code"] = preds
-                batch_df["predicted_condition"] = [
-                    LABEL_MAP.get(int(p), str(p)) for p in preds
-                ]
+                batch_df["predicted_condition"] = pred_labels
+
+                probs = None
                 if hasattr(model, "predict_proba"):
-                    batch_df["good_probability"] = model.predict_proba(X_batch)[:, 1].round(4)
+                    probs = model.predict_proba(X_batch)
+                    batch_df["poor_probability"] = probs[:, 0].round(4)
+                    batch_df["good_probability"] = probs[:, 1].round(4)
+
+                # Log batch predictions once per uploaded file when logging is enabled
+                if log_batch:
+                    file_sig = f"{uploaded_file.name}_{uploaded_file.size}"
+                    if st.session_state.get("last_logged_batch") != file_sig:
+                        log_batch_inferences(
+                            batch_df=X_batch,
+                            pred_codes=preds,
+                            pred_labels=pred_labels,
+                            probs=probs,
+                        )
+                        st.session_state["last_logged_batch"] = file_sig
+                        st.toast(f"Logged {len(X_batch)} batch predictions to drift monitor.")
 
                 st.dataframe(batch_df, use_container_width=True)
                 st.download_button(
@@ -226,6 +291,163 @@ def main():
                 columns=["Predicted: Poor (0)", "Predicted: Good (1)"],
             )
             st.table(cm_df)
+
+    # =========================================================================
+    # TAB 3: PRODUCTION DATA DRIFT MONITORING
+    # =========================================================================
+    with tab_drift:
+        st.subheader("Production Inference Drift Monitor")
+        st.markdown(
+            f"Compares logged inference requests (`{INFERENCE_LOG_PATH.as_posix()}`) "
+            f"against baseline training distributions (`{REFERENCE_DATA_PATH.as_posix()}`) using "
+            "**Kolmogorov-Smirnov** (numerical) and **Chi-Square** (categorical) tests."
+        )
+
+        with st.expander("Optional Alert Webhook Configuration"):
+            webhook_url = st.text_input(
+                "Slack / Discord / Teams Webhook URL (leave blank to use environment variable)",
+                value="",
+                type="password",
+            ).strip() or None
+
+        btn_c1, btn_c2, btn_c3, btn_c4 = st.columns(4)
+        with btn_c1:
+            run_live = st.button("🔄 Run Drift Check on Live Logs", use_container_width=True)
+        with btn_c2:
+            run_healthy_sim = st.button("✅ Simulate Healthy Traffic (50)", use_container_width=True)
+        with btn_c3:
+            run_drift_sim = st.button("🚨 Simulate Drifted Traffic (50)", use_container_width=True)
+        with btn_c4:
+            clear_logs = st.button("🗑️ Clear Inference Logs", use_container_width=True)
+
+        if clear_logs:
+            if INFERENCE_LOG_PATH.exists():
+                INFERENCE_LOG_PATH.unlink()
+            st.session_state.pop("last_logged_batch", None)
+            st.success(f"Cleared `{INFERENCE_LOG_PATH.as_posix()}`.")
+
+        report = None
+        try:
+            if run_live:
+                report = run_drift_check(
+                    reference_path=REFERENCE_DATA_PATH,
+                    logs_path=INFERENCE_LOG_PATH,
+                    webhook_url=webhook_url,
+                )
+            elif run_healthy_sim:
+                report = run_drift_check(
+                    reference_path=REFERENCE_DATA_PATH,
+                    logs_path=INFERENCE_LOG_PATH,
+                    generate_sample=True,
+                    simulate_drift=False,
+                    webhook_url=webhook_url,
+                )
+            elif run_drift_sim:
+                report = run_drift_check(
+                    reference_path=REFERENCE_DATA_PATH,
+                    logs_path=INFERENCE_LOG_PATH,
+                    generate_sample=True,
+                    simulate_drift=True,
+                    webhook_url=webhook_url,
+                )
+            elif DRIFT_JSON_PATH.exists():
+                with open(DRIFT_JSON_PATH, "r", encoding="utf-8") as f:
+                    report = json.load(f)
+        except FileNotFoundError as exc:
+            st.error(str(exc))
+
+        if report:
+            if report["dataset_drift_detected"]:
+                st.error(
+                    f"🚨 **DATA DRIFT DETECTED** — {report['drifted_features']} of "
+                    f"{report['total_features']} features drifted ({report['drift_share_pct']}% >= "
+                    f"{report['dataset_drift_threshold_pct']}% threshold). Retraining (`dvc repro`) recommended."
+                )
+            else:
+                st.success(
+                    f"✅ **DISTRIBUTION HEALTHY** — {report['drifted_features']} of "
+                    f"{report['total_features']} features drifted ({report['drift_share_pct']}% < "
+                    f"{report['dataset_drift_threshold_pct']}% threshold)."
+                )
+
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("Reference Samples", report["reference_samples"])
+            d2.metric("Production Logs", report["current_samples"])
+            d3.metric("Drifted Features", f"{report['drifted_features']} / {report['total_features']}")
+            d4.metric("Drift Share", f"{report['drift_share_pct']}%")
+
+            st.markdown("#### Feature-Level Statistical Test Results")
+            feat_rows = []
+            for feat, info in report["features"].items():
+                feat_rows.append(
+                    {
+                        "Feature": feat,
+                        "Type": info["feature_type"].capitalize(),
+                        "Test": info["test_name"],
+                        "Status": "DRIFT" if info["drift_detected"] else "PASS",
+                        "p-value": round(info["p_value"], 4),
+                        "Statistic": round(info["statistic"], 4),
+                        "Reference Baseline": info["reference_summary"],
+                        "Production Window": info["current_summary"],
+                        "Shift / Info": info["shift_summary"],
+                    }
+                )
+            st.dataframe(pd.DataFrame(feat_rows), use_container_width=True)
+            st.caption(f"Last evaluated at: `{report['timestamp']}`")
+
+            # Download buttons for generated drift reports
+            dl_c1, dl_c2, dl_c3 = st.columns(3)
+            with dl_c1:
+                st.download_button(
+                    "⬇️ Download Drift JSON",
+                    data=json.dumps(report, indent=4).encode("utf-8"),
+                    file_name="drift_report.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+            with dl_c2:
+                if DRIFT_HTML_PATH.exists():
+                    st.download_button(
+                        "⬇️ Download Drift HTML Dashboard",
+                        data=DRIFT_HTML_PATH.read_bytes(),
+                        file_name="drift_report.html",
+                        mime="text/html",
+                        use_container_width=True,
+                    )
+            with dl_c3:
+                if DRIFT_ALERT_MD_PATH.exists():
+                    st.download_button(
+                        "⬇️ Download Drift Alert Markdown",
+                        data=DRIFT_ALERT_MD_PATH.read_bytes(),
+                        file_name="drift_alert.md",
+                        mime="text/markdown",
+                        use_container_width=True,
+                    )
+
+            with st.expander("Preview Standalone HTML Drift Report"):
+                if DRIFT_HTML_PATH.exists():
+                    components.html(
+                        DRIFT_HTML_PATH.read_text(encoding="utf-8"),
+                        height=620,
+                        scrolling=True,
+                    )
+
+            with st.expander("Preview Incident Alert Markdown (`reports/drift_alert.md`)"):
+                if DRIFT_ALERT_MD_PATH.exists():
+                    st.markdown(DRIFT_ALERT_MD_PATH.read_text(encoding="utf-8"))
+        else:
+            st.info(
+                "No drift report generated yet. Submit predictions in Tab 1 or click "
+                "**Run Drift Check on Live Logs** above."
+            )
+
+        with st.expander("Recent Logged Production Predictions"):
+            logs_preview = load_inference_logs(INFERENCE_LOG_PATH)
+            if logs_preview.empty:
+                st.write("No inference logs recorded yet.")
+            else:
+                st.write(f"Total logged predictions: **{len(logs_preview)}**")
+                st.dataframe(logs_preview.tail(25), use_container_width=True)
 
 
 if __name__ == "__main__":

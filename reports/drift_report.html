@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bridge Condition - Data Drift Monitoring</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+        .container { max-width: 920px; margin: 0 auto; }
+        .header { background: white; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .badge { display: inline-block; padding: 6px 14px; border-radius: 16px; color: white; font-weight: bold; font-size: 14px; background: #10b981; }
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 16px; }
+        .stat-card { background: #f1f5f9; padding: 12px; border-radius: 8px; text-align: center; }
+        .stat-num { font-size: 20px; font-weight: bold; color: #0f172a; }
+        .stat-label { font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 style="margin: 0 0 6px 0; font-size: 24px;">Bridge Condition Data Drift Report</h1>
+                    <div style="color: #64748b; font-size: 13px;">Analyzed at: 2026-11-24T10:41:43.058329+00:00</div>
+                </div>
+                <div class="badge">DISTRIBUTION HEALTHY</div>
+            </div>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-num">473</div>
+                    <div class="stat-label">Reference Samples</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num">51</div>
+                    <div class="stat-label">Production Logs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num">0 / 4</div>
+                    <div class="stat-label">Drifted Features</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num">0.0%</div>
+                    <div class="stat-label">Drift Share</div>
+                </div>
+            </div>
+        </div>
+        <h2 style="font-size: 18px; margin-bottom: 12px;">Feature Drift Tests (KS &amp; Chi-Square)</h2>
+        
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div>
+                    <strong style="font-size: 16px; color: #1e293b;">age_of_bridge</strong>
+                    <span style="margin-left: 8px; font-size: 12px; color: #64748b;">(numerical • KS Test)</span>
+                </div>
+                <span style="background: #10b981; color: white; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">PASS</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 13px; color: #64748b;">
+                <div>p-value: <b style="color: #0f172a;">0.1131</b></div>
+                <div>Statistic: <b style="color: #0f172a;">0.1726</b></div>
+                <div>Reference: <b style="color: #0f172a;">49.13 (±29.29)</b></div>
+                <div>Production: <b style="color: #0f172a;">43.10 (±26.06)</b></div>
+            </div>
+        </div>
+        
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div>
+                    <strong style="font-size: 16px; color: #1e293b;">traffic_volume</strong>
+                    <span style="margin-left: 8px; font-size: 12px; color: #64748b;">(numerical • KS Test)</span>
+                </div>
+                <span style="background: #10b981; color: white; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">PASS</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 13px; color: #64748b;">
+                <div>p-value: <b style="color: #0f172a;">0.1482</b></div>
+                <div>Statistic: <b style="color: #0f172a;">0.1641</b></div>
+                <div>Reference: <b style="color: #0f172a;">2474.33 (±1410.25)</b></div>
+                <div>Production: <b style="color: #0f172a;">2532.88 (±1122.30)</b></div>
+            </div>
+        </div>
+        
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div>
+                    <strong style="font-size: 16px; color: #1e293b;">material_type</strong>
+                    <span style="margin-left: 8px; font-size: 12px; color: #64748b;">(categorical • Chi-Square)</span>
+                </div>
+                <span style="background: #10b981; color: white; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">PASS</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 13px; color: #64748b;">
+                <div>p-value: <b style="color: #0f172a;">0.9024</b></div>
+                <div>Statistic: <b style="color: #0f172a;">0.0150</b></div>
+                <div>Reference: <b style="color: #0f172a;">Top: Steel (51.0%)</b></div>
+                <div>Production: <b style="color: #0f172a;">Top: Steel (52.9%)</b></div>
+            </div>
+        </div>
+        
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div>
+                    <strong style="font-size: 16px; color: #1e293b;">maintenance_level</strong>
+                    <span style="margin-left: 8px; font-size: 12px; color: #64748b;">(categorical • Chi-Square)</span>
+                </div>
+                <span style="background: #10b981; color: white; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px;">PASS</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 13px; color: #64748b;">
+                <div>p-value: <b style="color: #0f172a;">0.3249</b></div>
+                <div>Statistic: <b style="color: #0f172a;">2.2486</b></div>
+                <div>Reference: <b style="color: #0f172a;">Top: Bi-Annual (35.3%)</b></div>
+                <div>Production: <b style="color: #0f172a;">Top: No-Maintainance (43.1%)</b></div>
+            </div>
+        </div>
+        
+    </div>
+</body>
+</html>
